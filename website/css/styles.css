@@ -1,0 +1,23 @@
+body    {
+    background-color: #1e1e1e;
+    color: #bfbfbf;
+    padding: 15px;
+}
+
+.output, #editor {
+    width: 800px;
+    height: 300px;
+    box-sizing: border-box;
+    margin-bottom: 15px;
+}
+
+.bubble {
+    padding: 20px;
+    background-color: #2d2d2d;
+    display: inline-block;
+    border-radius: 5px;
+}
+
+select  {
+    margin-bottom: 15px;
+}
