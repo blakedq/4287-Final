@@ -7,6 +7,7 @@ import sys
 from io import StringIO
 import zmq
 import argparse
+import subprocess
 
 '''
 input a json(dictionary) from arguement and output the result json
@@ -24,6 +25,7 @@ class Executor():
         self.masterPort = args.port
         self.recvPort = 8088
         self.sendPort = 8087
+        self.netInterface = args.netInterface
 
         self.reciever = zmq.Context().instance().socket(zmq.PULL)
         self.reciever.setsockopt(zmq.LINGER, -1)
@@ -32,7 +34,7 @@ class Executor():
         self.sender = zmq.Context().instance().socket(zmq.PUSH)
         self.sender.setsockopt(zmq.LINGER, -1)
 
-        self.ip = args.selfIp
+        self.ip = '127.0.0.1'
         
     def get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -46,8 +48,19 @@ class Executor():
             s.close()
         return IP
     
+    def parse_ip(self):
+        cmd = "ifconfig " + self.netInterface +  "| grep 'inet' | cut -d: -f2 | awk '{ print $2}'"
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+        (output, err) = p.communicate()
+        output = str(output, 'utf-8').replace('\n', '')
+        print('get ip err', err)
+        print('ip addr:', output)
+        return output
+
     def init_service(self):
         # self.ip = self.get_ip()
+
+        self.ip = self.parse_ip()
 
         self.reciever.bind("tcp://*:" + str(self.recvPort))
         self.sender.bind("tcp://*:" + str(self.sendPort))  
@@ -148,7 +161,7 @@ def parseCmdLineArgs ():
     parser = argparse.ArgumentParser ()
 
     # add optional arguments
-    parser.add_argument ("-s", "--selfIp", type=str, help="self ip address")
+    parser.add_argument ("-n", "--netInterface", type=str, help="network interface in use")
     parser.add_argument ("-m", "--masterIp", type=str, help="master ip address")
     parser.add_argument ("-p", "--port", type=int, help="master listening port")
     
