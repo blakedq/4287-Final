@@ -101,12 +101,14 @@ class Executor():
             sys.stdin = old_stdin
             retVal = {'status': 'success', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg':''}
         except SyntaxError as err:
+            signal.alarm(0)
             sys.stdout = old_stdout
             sys.stdin = old_stdin
             # print('sytax err')
             # print(err)
             retVal = {'status': 'syntax error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** syntax error:\n' + str(err)}
         except Exception as exc:
+            signal.alarm(0)
             sys.stdout = old_stdout
             sys.stdin = old_stdin
             if (exc == 'timeout'):
