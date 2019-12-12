@@ -40,5 +40,5 @@ def getpost():
     
     return jsonify(return_dict['res'])
 
-app.run(port=8888)
+app.run(host='0.0.0.0', port=8888)
 

@@ -1,5 +1,6 @@
 
-const serverUrl = 'http://localhost:8888';
+// const serverUrl = 'http://localhost:8888';
+const serverUrl = 'http://ec2-3-90-220-109.compute-1.amazonaws.com:8888';
 const id = 1;
 // let editor = ace.edit("editor");
 
