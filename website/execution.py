@@ -49,8 +49,8 @@ class Executor():
     def init_service(self):
         self.ip = self.get_ip()
 
-        self.reciever.bind("tcp://" + self.ip + ":" + str(self.recvPort))
-        self.sender.bind("tcp://" + self.ip + ":" + str(self.sendPort))  
+        self.reciever.bind("tcp://*:" + str(self.recvPort))
+        self.sender.bind("tcp://*:" + str(self.sendPort))  
 
         init_sender = zmq.Context().instance().socket(zmq.PUSH)
         init_sender.setsockopt(zmq.LINGER, -1)

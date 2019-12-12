@@ -12,7 +12,7 @@ def listenToWorkers(workerLst):
     init_reciever = zmq.Context().instance().socket(zmq.PULL)
     init_reciever.setsockopt(zmq.LINGER, -1)
     init_reciever.setsockopt(zmq.SNDHWM, 0)
-    init_reciever.bind("tcp://127.0.0.1:8086")
+    init_reciever.bind("tcp://*:8086")
 
     while True:
         workerAddr = init_reciever.recv_string()
