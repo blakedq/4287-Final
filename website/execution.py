@@ -5,6 +5,8 @@ import poplib
 import timeit
 import sys
 from io import StringIO
+import zmq
+import argparse
 
 '''
 input a json(dictionary) from arguement and output the result json
@@ -12,86 +14,150 @@ input keys are: id, timeout, code, input
 output keys are: status, exec_time, output, error_msg
 '''
 
-def Execute(codeInfo, retDict = None):
+import socket
 
-    print('codeinfo:')
-    print(codeInfo)
-    
-    def sigHandler(signum, frame):
-        # print('handler')
-        raise Exception("timout")
-    
-    signal.signal(signal.SIGALRM, sigHandler)
 
-    codeId = codeInfo['id']
-    timeLimit = codeInfo['timeout']
-    pyCode = codeInfo['code']
-    userInput = codeInfo['input']
+class Executor():
+    def __init__(self, args):
+        super().__init__()
+        self.masterIp = args.masterIp
+        self.masterPort = args.port
+        self.recvPort = 8088
+        self.sendPort = 8087
 
-    signal.alarm(timeLimit)
-
-    execTime = -1
-
-    old_stdout = sys.stdout
-    old_stdin = sys.stdin
-
-    mystdout = StringIO()
-    mystdin = StringIO()
-    sys.stdout = mystdout
-    sys.stdin = mystdin
-    mystdin.write(userInput)
-
-    retVal = None
-
-    try:
-        # startPoint = time.time()
-        # exec(pyCode)
-        # execTime = time.time() - startPoint
-        execTime = timeit.timeit(pyCode, number=1)
-        sys.stdout = old_stdout
-        sys.stdin = old_stdin
-        retVal = {'status': 'success', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg':''}
-    except SyntaxError as err:
-        sys.stdout = old_stdout
-        sys.stdin = old_stdin
-        # print('sytax err')
-        # print(err)
-        retVal = {'status': 'syntax error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** syntax error:\n' + str(err)}
-    except Exception as exc:
-        sys.stdout = old_stdout
-        sys.stdin = old_stdin
-        if (exc == 'timeout'):
-            retVal = {'status': 'timout', 'exec_time': timeLimit, 'output':mystdout.getvalue(), 'error_msg': '*** execution timeout!'}
-        else:
-            retVal = {'status': 'runtime error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** runtime error:\n' + str(exc)}
-    
-    # print('mystdout:', mystdout.getvalue())
-
-    if (not retDict is None):
-        retDict['res'] = retVal
+        self.reciever = zmq.Context().instance().socket(zmq.PULL)
+        self.reciever.setsockopt(zmq.LINGER, -1)
+        self.reciever.setsockopt(zmq.SNDHWM, 0)
         
-    return retVal
+        self.sender = zmq.Context().instance().socket(zmq.PUSH)
+        self.sender.setsockopt(zmq.LINGER, -1)
+
+        self.ip = '127.0.0.1'
+
+    def get_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
+    
+    def init_service(self):
+        self.ip = self.get_ip()
+
+        self.reciever.bind("tcp://" + self.ip + ":" + str(self.recvPort))
+        self.sender.bind("tcp://" + self.ip + ":" + str(self.sendPort))  
+
+        init_sender = zmq.Context().instance().socket(zmq.PUSH)
+        init_sender.setsockopt(zmq.LINGER, -1)
+        init_sender.connect("tcp://" + self.masterIp + ":" + str(self.masterPort))
+        init_sender.send_string(self.ip + ":" + str(self.sendPort))
+
+        print('service initialized!')
+
+    def execution(self, codeInfo):
+
+        print('codeinfo:')
+        print(codeInfo)
+        
+        def sigHandler(signum, frame):
+            # print('handler')
+            raise Exception("timout")
+        
+        signal.signal(signal.SIGALRM, sigHandler)
+
+        codeId = codeInfo['id']
+        timeLimit = codeInfo['timeout']
+        pyCode = codeInfo['code']
+        userInput = codeInfo['input']
+
+        execTime = -1
+
+        old_stdout = sys.stdout
+        old_stdin = sys.stdin
+
+        mystdout = StringIO()
+        mystdin = StringIO()
+        sys.stdout = mystdout
+        sys.stdin = mystdin
+        mystdin.write(userInput)
+
+        retVal = None
+
+        try:
+            # startPoint = time.time()
+            # exec(pyCode)
+            # execTime = time.time() - startPoint
+
+            signal.alarm(timeLimit)
+            execTime = timeit.timeit(pyCode, number=1)
+            signal.alarm(0)
+
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+            retVal = {'status': 'success', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg':''}
+        except SyntaxError as err:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+            # print('sytax err')
+            # print(err)
+            retVal = {'status': 'syntax error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** syntax error:\n' + str(err)}
+        except Exception as exc:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+            if (exc == 'timeout'):
+                retVal = {'status': 'timout', 'exec_time': timeLimit, 'output':mystdout.getvalue(), 'error_msg': '*** execution timeout!'}
+            else:
+                retVal = {'status': 'runtime error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** runtime error:\n' + str(exc)}
+        
+        # print('mystdout:', mystdout.getvalue())
+            
+        return retVal
+
+    def start_service(self):
+        self.init_service()
+
+        while True:
+            arg = self.reciever.recv()
+            try:
+                arg = eval(arg)
+                print(arg)
+                arg['id']
+                arg['timeout']
+                arg['code']
+                arg['input']
+                res = self.execution(arg)
+                print("res:\n", res)
+
+                self.sender.send_string(str(res))
+
+            except NameError as err:
+                print('invalid arguments')
+                print(err)
+            except KeyError:
+                print('wrong json content')
 
 
+def parseCmdLineArgs ():
+    parser = argparse.ArgumentParser ()
+
+    # add optional arguments
+    parser.add_argument ("-m", "--masterIp", type=str, help="master ip address")
+    parser.add_argument ("-p", "--port", type=int, help="master listening port")
+    
+    args = parser.parse_args()
+
+    return args
 
 def main():
-    if (len(sys.argv) < 2):
-        print('need a json arguement!')
-        exit(1)
-    
-    try:
-        arg = sys.argv[1]
-        print(arg)
-        exit(1)
-        arg['id']
-        arg['timeout']
-        arg['code']
-        arg['input']
-        print(Execute(arg))
-    except NameError:
-        print('invalid arguments')
-    except KeyError:
-        print('wrong json content')
+    parsed_args = parseCmdLineArgs()
+
+    exc = Executor(parsed_args)
+    exc.start_service()
 
 
 if __name__ == "__main__":
