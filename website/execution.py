@@ -32,8 +32,8 @@ class Executor():
         self.sender = zmq.Context().instance().socket(zmq.PUSH)
         self.sender.setsockopt(zmq.LINGER, -1)
 
-        self.ip = '127.0.0.1'
-
+        self.ip = args.selfIp
+        
     def get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -47,7 +47,7 @@ class Executor():
         return IP
     
     def init_service(self):
-        self.ip = self.get_ip()
+        # self.ip = self.get_ip()
 
         self.reciever.bind("tcp://*:" + str(self.recvPort))
         self.sender.bind("tcp://*:" + str(self.sendPort))  
@@ -148,6 +148,7 @@ def parseCmdLineArgs ():
     parser = argparse.ArgumentParser ()
 
     # add optional arguments
+    parser.add_argument ("-s", "--selfIp", type=str, help="self ip address")
     parser.add_argument ("-m", "--masterIp", type=str, help="master ip address")
     parser.add_argument ("-p", "--port", type=int, help="master listening port")
     
