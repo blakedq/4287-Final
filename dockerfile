@@ -8,5 +8,6 @@ RUN pip3 install zmq
 RUN pip3 install flask
 
 WORKDIR /root/
+RUN rm -rf *
 RUN git clone https://github.com/blakedq/4287-Final
 WORKDIR /root/4287-Final/website
