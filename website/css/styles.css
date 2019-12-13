@@ -9,6 +9,7 @@ body    {
     height: 300px;
     box-sizing: border-box;
     margin-bottom: 15px;
+    overflow: scroll;
 }
 
 .bubble {

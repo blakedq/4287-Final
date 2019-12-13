@@ -15,6 +15,9 @@ $('#execute').on("click", function() {
 
     console.log(editor.getValue());
 
+    $('#execute').attr("disabled", true);
+    $('#execute').text("Pending...");
+
     $.ajax({
         url: serverUrl + '/execute',
         type: "POST",
@@ -25,6 +28,9 @@ $('#execute').on("click", function() {
         success: function(msg) {
             console.log(msg);
 
+            $('#execute').attr("disabled", false);
+            $('#execute').text("Execute");
+
             if (msg['status'] == 'success') {
                 let mstime = (msg['exec_time'] * 1000).toFixed(3);
                 $('#result').text(' succeeded with   ' + mstime + 'ms');
@@ -34,7 +40,14 @@ $('#execute').on("click", function() {
             }
 
             $('#stdout').html(msg['output'].replace(/\n/g, "<br>") + msg['error_msg'].replace(/\n/g, "<br>"));
-        }
+        }, 
+
+        error: function(XMLHttpRequest, textStatus, errorThrown) { 
+            console.error("Status: " + textStatus); 
+            console.error("Error: " + errorThrown); 
+            $('#execute').attr("disabled", false);
+            $('#execute').text("Execute");
+        }  
     });
 
     console.log('done')
