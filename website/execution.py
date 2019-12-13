@@ -99,7 +99,7 @@ class Executor():
         
         def sigHandler(signum, frame):
             # print('handler')
-            raise Exception("timout")
+            raise Exception("timeout")
         
         signal.signal(signal.SIGALRM, sigHandler)
 
@@ -148,8 +148,8 @@ class Executor():
             self.sendLock.release()
             sys.stdout = old_stdout
             sys.stdin = old_stdin
-            if (exc == 'timeout'):
-                retVal = {'status': 'timout', 'exec_time': timeLimit, 'output':mystdout.getvalue(), 'error_msg': '*** execution timeout!'}
+            if (str(exc) == 'timeout'):
+                retVal = {'status': 'timeout', 'exec_time': timeLimit, 'output':mystdout.getvalue(), 'error_msg': '*** execution timeout!'}
             else:
                 retVal = {'status': 'runtime error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** runtime error:\n' + str(exc)}
         
