@@ -16,19 +16,28 @@ On each host VM, docker should be installed:
 ```shell
 sudo apt install docker.io
 ```
+Docker image for master and workers need to be created. For simplicity, we use the same image contains both worker and server code. You can either create identical images on each VM or create a private registry which is reachable from all VMs.
+
+#### 1.3 Deploy Service with Swarm
+
 Select one of the host as master node, initialize docker swarm on the node, in our case it's address is 172.31.24.67
 ```shell
 sudo docker swarm init --advertise-addr=172.31.24.67
 ```
+Then create each worker node from a independent swarm service.
 
+```shell
 sudo docker service create --replicas 1 --name oj_master --constraint 'node.hostname == ip-172-31-24-67' -t --network oj_network oj_node /bin/bash -p 8888:8888 -p 8086:8086
-
+```
+```shell
 sudo docker service create --replicas 1 --name oj_worker1 --constraint 'node.hostname == ip-172-31-25-219' -t --network oj_network oj_node python3 /root/4287-Final/website/execution.py -n eth0 -m 172.31.24.67 -p 8086
-
+```
+```shell
 sudo docker service create --replicas 1 --name oj_worker2 --constraint 'node.hostname == ip-172-31-34-157' -t --network oj_network oj_node python3 /root/4287-Final/website/execution.py -n eth0 -m 172.31.24.67 -p 8086
-
+```
+```shell
 sudo docker service create --replicas 1 --name oj_worker3 --constraint 'node.hostname == ip-172-31-36-122' -t --network oj_network oj_node python3 /root/4287-Final/website/execution.py -n eth0 -m 172.31.24.67 -p 8086
-
+```
 
 ### 2. Master-Worker Communication
 There is a network create for the swarm cluster so all the nodes can communicate with each other through the network. 
@@ -51,3 +60,11 @@ When a worker's signal is recieved, the time of recieve is recorded for that wor
 When the master send a request to a worker, the master will pend on the result from the worker. If it taks too long to hear back from the worker, master will return an error message to the frontend. If the master get the result from the worker the result data is too large which means the output is too long, then master will return a 'output limit exceeded' message to the frontend. 
 
 ### 4. Worker Node
+
+In each worker node process, there is a thread the send signal message every 10 second
+
+In the main thread, there is an infinite loop that pending on request from the master and will execute the code once revieve the request
+
+To make sure the signal sending thread won't interfere with execution, we use a mutex to prevent the concurrency.
+
+We use signal to implement the timeout functionality of excecution. For measuring execution time, we use Python timeit module. All code excecution exceptions are handled and the worker process will send the result of execution status (succeeded for failed) and running time, output if applicable. 
