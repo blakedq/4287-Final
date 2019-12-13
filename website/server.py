@@ -93,13 +93,13 @@ def getpost():
     reciever.connect("tcp://" + worker['ip'] + ":" + str(worker['port']))
     try:
         result = reciever.recv_string()
-        if (result['output'] > 5000):
-            result['output'] = result['output'][:5000]
+        if (len(result) > 6000):
+            return jsonify({'status':'output limit exceeded', 'exec_time': -1, 'output':'', 'error_msg': '*** too much for the output, check print functions in your code!'})
         print('recv:\n', result)
         wQueue.put(worker)
         return jsonify(eval(result))
     except Exception as err:
-        print('should be timeout')
+        print('should be timeout', err)
         return jsonify({'status':'failed', 'exec_time': -1, 'output':'', 'error_msg': '*** server has some problem!'})
     
     # return_dict = Manager().dict()
