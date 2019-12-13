@@ -4,9 +4,14 @@ from flask import Flask, request, Response, render_template, send_from_directory
 from subprocess import Popen, PIPE
 from multiprocessing import Process, Manager
 from threading import Thread
+from queue import Queue
+from time import time
 import zmq
 
 workers = []
+
+wQueue = Queue()
+wRecord = {}
 
 def listenToWorkers(workerLst):
     init_reciever = zmq.Context().instance().socket(zmq.PULL)
@@ -18,20 +23,24 @@ def listenToWorkers(workerLst):
         workerAddr = init_reciever.recv_string()
         workerAddr = workerAddr.split(':')
 
-        workerDict = {'ip': workerAddr[0], 'port': eval(workerAddr[1])}
+        if (not workerAddr[0] in wRecord):
+            workerDict = {'ip': workerAddr[0], 'port': eval(workerAddr[1])}
 
-        sender = zmq.Context().instance().socket(zmq.PUSH)
-        sender.setsockopt(zmq.LINGER, -1)
-        reciever = zmq.Context().instance().socket(zmq.PULL)
-        reciever.setsockopt(zmq.LINGER, -1)
-        reciever.setsockopt(zmq.SNDHWM, 0)
+            sender = zmq.Context().instance().socket(zmq.PUSH)
+            sender.setsockopt(zmq.LINGER, -1)
+            reciever = zmq.Context().instance().socket(zmq.PULL)
+            reciever.setsockopt(zmq.LINGER, -1)
+            reciever.setsockopt(zmq.CONFLATE, 1)
+            reciever.setsockopt(zmq.RCVTIMEO, 18000)
 
-        workerDict['sender'] = sender
-        workerDict['reciever'] = reciever
-        workerDict['free'] = True
+            workerDict['sender'] = sender
+            workerDict['reciever'] = reciever
 
-        workerLst.append(workerDict)
-        print('new worker:\n', workerDict)
+            workerLst.append(workerDict)
+            wQueue.put(workerDict)
+            print('new worker:\n', workerDict)
+        
+        wRecord[workerAddr[0]] = time()
 
 t = Thread(target=listenToWorkers, args=(workers, ))
 t.start()
@@ -67,24 +76,30 @@ def getpost():
     print("data is " + format(data))
     print(str(format(data)))
 
-    print(workers)
-    for worker in workers:
-        if worker['free'] == False:
-            continue
-        
-        worker['free'] = False
-        sender = worker['sender']
-        reciever = worker['reciever']
-        sender.connect("tcp://" + worker['ip'] + ":" + str(worker['port'] + 1))
-        sender.send_string(str(format(data)))
+    print(wRecord)
 
-        reciever.connect("tcp://" + worker['ip'] + ":" + str(worker['port']))
+    worker = wQueue.get()
+
+    while (time() - wRecord[worker['ip']] > 20):
+        del wRecord[worker['ip']]
+        print('abandoned ip:', wRecord[worker['ip']])
+        worker = wQueue.get()
+
+    sender = worker['sender']
+    reciever = worker['reciever']
+    sender.connect("tcp://" + worker['ip'] + ":" + str(worker['port'] + 1))
+    sender.send_string(str(format(data)))
+
+    reciever.connect("tcp://" + worker['ip'] + ":" + str(worker['port']))
+    try:
         result = reciever.recv_string()
         print('recv:\n', result)
-        worker['free'] = True
-
+        wQueue.put(worker)
         return jsonify(eval(result))
-
+    except Exception as err:
+        print('should be timeout')
+        return jsonify({'status':'failed', 'exec_time': -1, 'output':'', 'error_msg': '*** server has some problem!'})
+    
     # return_dict = Manager().dict()
     # p = Process(target=Execute, args=(data, return_dict))
     # p.start()
@@ -100,7 +115,7 @@ def getpost():
 
     # print('res\n', return_dict['res'])
     
-    return jsonify({'status':'failed'})
+    return jsonify({'status':'failed', 'exec_time': -1, 'output':'', 'error_msg': '*** server is too busy!'})
 
 app.run(host='0.0.0.0', port=8888)
 

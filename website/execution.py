@@ -16,6 +16,21 @@ output keys are: status, exec_time, output, error_msg
 '''
 
 import socket
+from threading import Thread, Lock
+
+
+def periodMsg(mutex, dst, content):
+    sender = zmq.Context().instance().socket(zmq.PUSH)
+    sender.setsockopt(zmq.LINGER, -1)
+    sender.setsockopt(zmq.CONFLATE, 1)
+    sender.connect(dst)
+
+    while True:
+        mutex.acquire()
+        sender.send_string(content)
+        mutex.release()
+        print('sent signal msg')
+        time.sleep(10)
 
 
 class Executor():
@@ -34,6 +49,8 @@ class Executor():
         self.sender = zmq.Context().instance().socket(zmq.PUSH)
         self.sender.setsockopt(zmq.LINGER, -1)
 
+        self.sendLock = Lock()
+        self.signalTrd = None
         self.ip = '127.0.0.1'
         
     def get_ip(self):
@@ -65,10 +82,13 @@ class Executor():
         self.reciever.bind("tcp://*:" + str(self.recvPort))
         self.sender.bind("tcp://*:" + str(self.sendPort))  
 
-        init_sender = zmq.Context().instance().socket(zmq.PUSH)
-        init_sender.setsockopt(zmq.LINGER, -1)
-        init_sender.connect("tcp://" + self.masterIp + ":" + str(self.masterPort))
-        init_sender.send_string(self.ip + ":" + str(self.sendPort))
+        self.signalTrd = Thread(target=periodMsg, args=(self.sendLock, "tcp://" + self.masterIp + ":" + str(self.masterPort), self.ip + ":" + str(self.sendPort), ))
+
+        self.signalTrd.start()
+        # init_sender = zmq.Context().instance().socket(zmq.PUSH)
+        # init_sender.setsockopt(zmq.LINGER, -1)
+        # init_sender.connect("tcp://" + self.masterIp + ":" + str(self.masterPort))
+        # init_sender.send_string(self.ip + ":" + str(self.sendPort))
 
         print('service initialized!')
 
@@ -106,15 +126,18 @@ class Executor():
             # exec(pyCode)
             # execTime = time.time() - startPoint
 
+            self.sendLock.acquire()
             signal.alarm(timeLimit)
             execTime = timeit.timeit(pyCode, number=1)
             signal.alarm(0)
-
+            self.sendLock.release()
+            
             sys.stdout = old_stdout
             sys.stdin = old_stdin
             retVal = {'status': 'success', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg':''}
         except SyntaxError as err:
             signal.alarm(0)
+            self.sendLock.release()
             sys.stdout = old_stdout
             sys.stdin = old_stdin
             # print('sytax err')
@@ -122,6 +145,7 @@ class Executor():
             retVal = {'status': 'syntax error', 'exec_time': execTime, 'output':mystdout.getvalue(), 'error_msg': '*** syntax error:\n' + str(err)}
         except Exception as exc:
             signal.alarm(0)
+            self.sendLock.release()
             sys.stdout = old_stdout
             sys.stdin = old_stdin
             if (exc == 'timeout'):

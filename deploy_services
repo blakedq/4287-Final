@@ -1,0 +1,1 @@
+sudo docker service create --replicas 1 --name oj_worker1 --constraint 'node.hostname == ip-172-31-25-219' -t --network oj_network oj_node python3 /root/4287-Final/website/execution.py -n eth1 -m ip-172-31-24-67 -p 8086
