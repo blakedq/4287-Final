@@ -93,6 +93,8 @@ def getpost():
     reciever.connect("tcp://" + worker['ip'] + ":" + str(worker['port']))
     try:
         result = reciever.recv_string()
+        if (result['output'] > 5000):
+            result['output'] = result['output'][:5000]
         print('recv:\n', result)
         wQueue.put(worker)
         return jsonify(eval(result))
