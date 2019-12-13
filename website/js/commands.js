@@ -17,7 +17,9 @@ $('#execute').on("click", function() {
 
     $('#execute').attr("disabled", true);
     $('#execute').text("Pending...");
-
+    $('#result').text('');
+    $('#stdout').html('');
+    
     $.ajax({
         url: serverUrl + '/execute',
         type: "POST",
